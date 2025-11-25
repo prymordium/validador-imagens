@@ -197,3 +197,4 @@ else:
     st.info('📤 Carregue um arquivo .csv ou .xlsx com colunas: URL_Imagem, Categoria, Data, CNPJ')
 
 
+
