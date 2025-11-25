@@ -69,18 +69,6 @@ if st.session_state.df is not None:
         val = str(row.get("Valida", "")).strip()
         return val != "" and val != "nan"
 
-    # Proteger o índice atual para evitar mudanças durante interação com widgets
-    if "indice_protegido" not in st.session_state:
-        st.session_state.indice_protegido = idx
-    
-    # Se o índice mudou por ação do usuário (botões), atualizar protegido
-    if "ultima_acao" in st.session_state and st.session_state.ultima_acao:
-        st.session_state.indice_protegido = idx
-        st.session_state.ultima_acao = False
-    
-    # Usar índice protegido
-    idx = st.session_state.indice_protegido
-
     # Pular imagens já validadas APENAS se não estamos voltando manualmente
     if "voltando" not in st.session_state:
         st.session_state.voltando = False
@@ -88,13 +76,13 @@ if st.session_state.df is not None:
     if not st.session_state.voltando:
         while idx < total and esta_validada(df.iloc[idx]):
             idx += 1
-            st.session_state.indice_protegido = idx
     
     # Resetar flag de volta
     st.session_state.voltando = False
     
-    # Atualizar indice real
-    st.session_state.indice = idx
+    # Atualizar índice
+    if idx != st.session_state.indice:
+        st.session_state.indice = idx
 
     # Calcular progresso
     total_validadas = sum(df.apply(esta_validada, axis=1))
@@ -116,8 +104,6 @@ if st.session_state.df is not None:
         )
         if st.button("Ir", key=f"btn_ir_{idx}"):
             st.session_state.indice = linha_saltar - 1
-            st.session_state.indice_protegido = linha_saltar - 1
-            st.session_state.ultima_acao = True
             st.rerun()
 
     st.divider()
@@ -333,8 +319,6 @@ if st.session_state.df is not None:
                                     linhas_replicadas += 1
                     
                     st.session_state.indice = idx + 1
-                    st.session_state.indice_protegido = idx + 1
-                    st.session_state.ultima_acao = True
                     
                     if linhas_replicadas > 0:
                         st.success(f"✅ Salvo como SEM IMAGEM!\n\n🔄 **{linhas_replicadas} linha(s) duplicada(s) replicada(s) automaticamente!**")
