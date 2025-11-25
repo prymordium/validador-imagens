@@ -481,8 +481,6 @@ if st.session_state.df is not None:
         
         if st.button("🔄 Reiniciar Validação"):
             st.session_state.indice = 0
-            st.session_state.indice_protegido = 0
-            st.session_state.ultima_acao = True
             st.rerun()
 else:
     st.info('📤 **Carregue um arquivo CSV ou XLSX para começar a validação**')
