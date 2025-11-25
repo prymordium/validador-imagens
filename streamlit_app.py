@@ -102,6 +102,14 @@ if st.session_state.df is not None:
     if idx < total:
         linha = df.iloc[idx]
         
+        # ===== DEBUG: Mostra TODAS as colunas e valores =====
+        with st.expander("🔍 DEBUG - Colunas e Valores"):
+            st.write("**Todas as colunas do DataFrame:**")
+            st.write(df.columns.tolist())
+            st.write("**Valores da linha atual:**")
+            for col in df.columns:
+                st.write(f"- {col}: `{linha[col]}`")
+        
         # Normaliza nomes das colunas
         colunas_normalizadas = {col.strip().lower(): col for col in df.columns}
         
@@ -110,10 +118,14 @@ if st.session_state.df is not None:
         col_data = None
         col_cnpj = None
         
-        for candidate in ["url_imagem", "url", "imagem", "link", "caminho_local"]:
+        for candidate in ["url_imagem", "url", "imagem", "link", "caminho_local", "image", "url_da_imagem"]:
             if candidate in colunas_normalizadas:
                 col_url = colunas_normalizadas[candidate]
+                st.info(f"✅ Coluna de URL detectada: `{col_url}`")
                 break
+        
+        if not col_url:
+            st.error("❌ Nenhuma coluna de URL detectada! Colunas disponíveis: " + str(df.columns.tolist()))
         
         for candidate in ["categoria", "category", "categoria_item"]:
             if candidate in colunas_normalizadas:
@@ -130,48 +142,61 @@ if st.session_state.df is not None:
                 col_cnpj = colunas_normalizadas[candidate]
                 break
 
-        # Verifica se tem imagem com debugging
+        # Verifica se tem imagem com debugging completo
         tem_imagem = False
         url_imagem = ""
         erro_imagem = ""
         
-        if col_url and pd.notna(linha[col_url]):
-            url_imagem = str(linha[col_url]).strip()
+        if col_url:
+            valor_bruto = linha[col_url]
+            st.write(f"**Valor bruto da coluna URL:** `{repr(valor_bruto)}`")
+            st.write(f"**Tipo:** {type(valor_bruto)}")
             
-            # Debug: mostra o que está tentando carregar
-            st.write(f"**DEBUG - URL detectada:** `{url_imagem}`")
-            
-            if url_imagem and url_imagem.lower() != "nan" and url_imagem != "":
-                try:
-                    if url_imagem.startswith("http://") or url_imagem.startswith("https://"):
-                        # Carrega de URL
-                        response = requests.get(url_imagem, timeout=15, allow_redirects=True)
-                        response.raise_for_status()
-                        
-                        # Verifica se o conteúdo é uma imagem
-                        content_type = response.headers.get('content-type', '')
-                        if 'image' not in content_type:
-                            st.write(f"**DEBUG - Content-Type:** {content_type}")
-                        
-                        img = Image.open(BytesIO(response.content))
-                        tem_imagem = True
-                    else:
-                        # Carrega arquivo local
-                        try:
-                            img = Image.open(url_imagem)
+            if pd.notna(valor_bruto):
+                url_imagem = str(valor_bruto).strip()
+                st.write(f"**URL após tratamento:** `{url_imagem}`")
+                
+                if url_imagem and url_imagem.lower() != "nan" and url_imagem != "":
+                    try:
+                        if url_imagem.startswith("http://") or url_imagem.startswith("https://"):
+                            st.write(f"📡 **Tentando carregar de URL:** `{url_imagem}`")
+                            response = requests.get(url_imagem, timeout=15, allow_redirects=True)
+                            response.raise_for_status()
+                            
+                            content_type = response.headers.get('content-type', '')
+                            st.write(f"**Content-Type:** {content_type}")
+                            st.write(f"**Status Code:** {response.status_code}")
+                            st.write(f"**Tamanho:** {len(response.content)} bytes")
+                            
+                            img = Image.open(BytesIO(response.content))
                             tem_imagem = True
-                        except FileNotFoundError:
-                            erro_imagem = f"Arquivo não encontrado: {url_imagem}"
-                except requests.exceptions.MissingSchema:
-                    erro_imagem = f"URL inválida (falta http/https): {url_imagem}"
-                except requests.exceptions.ConnectionError:
-                    erro_imagem = f"Erro de conexão ao acessar: {url_imagem}"
-                except requests.exceptions.Timeout:
-                    erro_imagem = f"Timeout ao carregar imagem (URL muito lenta)"
-                except requests.exceptions.HTTPError as e:
-                    erro_imagem = f"Erro HTTP {response.status_code}: {url_imagem}"
-                except Exception as e:
-                    erro_imagem = f"Erro: {type(e).__name__}: {str(e)}"
+                            st.success("✅ Imagem carregada com sucesso!")
+                        else:
+                            st.write(f"📁 **Tentando carregar arquivo local:** `{url_imagem}`")
+                            try:
+                                img = Image.open(url_imagem)
+                                tem_imagem = True
+                                st.success("✅ Imagem local carregada com sucesso!")
+                            except FileNotFoundError:
+                                erro_imagem = f"Arquivo não encontrado: {url_imagem}"
+                    except requests.exceptions.MissingSchema:
+                        erro_imagem = f"URL inválida (falta http/https): {url_imagem}"
+                    except requests.exceptions.ConnectionError:
+                        erro_imagem = f"Erro de conexão ao acessar: {url_imagem}"
+                    except requests.exceptions.Timeout:
+                        erro_imagem = f"Timeout ao carregar imagem (URL muito lenta)"
+                    except requests.exceptions.HTTPError as e:
+                        erro_imagem = f"Erro HTTP {response.status_code}: {url_imagem}"
+                    except Exception as e:
+                        erro_imagem = f"Erro: {type(e).__name__}: {str(e)}"
+                else:
+                    erro_imagem = "URL vazia ou inválida (NaN)"
+            else:
+                erro_imagem = "Valor da URL é vazio (NaN)"
+        else:
+            erro_imagem = "Coluna de URL não foi detectada"
+
+        st.divider()
 
         # Layout
         col1, col2 = st.columns([2, 1])
@@ -181,7 +206,6 @@ if st.session_state.df is not None:
             
             if tem_imagem:
                 try:
-                    # Resize para 9:16 (vertical)
                     largura = 360
                     altura = int(largura * 16 / 9)
                     img = img.resize((largura, altura))
@@ -284,29 +308,4 @@ if st.session_state.df is not None:
             if btn_voltar:
                 if idx > 0:
                     st.session_state.indice = idx - 1
-                else:
-                    st.warning("⚠️ Primeira imagem")
-            
-            if btn_proximo:
-                st.session_state.indice = idx + 1
-
-    else:
-        st.success('✅ Finalizado! Todas as imagens já foram validadas.')
-        
-        total_validas = len(df[df['Valida'] == 'SIM'])
-        total_invalidas = len(df[df['Valida'] == 'NÃO'])
-        
-        col_stat1, col_stat2, col_stat3 = st.columns(3)
-        with col_stat1:
-            st.metric("Total Validadas", total_validadas)
-        with col_stat2:
-            st.metric("Válidas", total_validas)
-        with col_stat3:
-            st.metric("Inválidas", total_invalidas)
-        
-        st.dataframe(df, use_container_width=True)
-        
-        if st.button("🔄 Reiniciar validação"):
-            st.session_state.indice = 0
-else:
-    st.info('📤 Carregue um arquivo .csv ou .xlsx com colunas: URL_Imagem, Categoria, Data, CNPJ')
+                else
