@@ -4,7 +4,6 @@ from datetime import datetime
 from PIL import Image
 import requests
 from io import BytesIO
-import chardet
 
 st.set_page_config(page_title="Validação de Imagens", layout="wide")
 st.title("Validador de Imagens")
@@ -19,21 +18,12 @@ if "df" not in st.session_state:
 
 if uploaded_file:
     if uploaded_file.name.endswith('.csv'):
-        # Detecta encoding
-        raw_data = uploaded_file.read()
-        result = chardet.detect(raw_data)
-        encoding = result['encoding']
-        
-        # Tenta ler com diferentes separadores
+        # Pandas detecta automaticamente o separador
         try:
-            df = pd.read_csv(uploaded_file, sep=';', encoding=encoding)
+            df = pd.read_csv(uploaded_file, sep=None, engine='python')
         except:
             uploaded_file.seek(0)
-            try:
-                df = pd.read_csv(uploaded_file, sep=',', encoding=encoding)
-            except:
-                uploaded_file.seek(0)
-                df = pd.read_csv(uploaded_file, encoding=encoding)
+            df = pd.read_csv(uploaded_file, sep=';')
     else:
         df = pd.read_excel(uploaded_file)
 
@@ -195,6 +185,3 @@ if st.session_state.df is not None:
             st.session_state.indice = 0
 else:
     st.info('📤 Carregue um arquivo .csv ou .xlsx com colunas: URL_Imagem, Categoria, Data, CNPJ')
-
-
-
