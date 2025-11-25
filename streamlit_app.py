@@ -308,4 +308,11 @@ if st.session_state.df is not None:
             if btn_voltar:
                 if idx > 0:
                     st.session_state.indice = idx - 1
-                else
+                else:
+                    st.warning("⚠️ Primeira imagem")
+            
+            if btn_proximo:
+                st.session_state.indice = idx + 1
+
+    else:
+        st.success
