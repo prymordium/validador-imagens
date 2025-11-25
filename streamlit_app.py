@@ -10,10 +10,13 @@ st.title("Validador de Imagens")
 
 uploaded_file = st.file_uploader("Faça upload do arquivo de imagens (.csv, .xlsx)", type=["csv", "xlsx"])
 
+# Inicializar session_state
 if "indice" not in st.session_state:
     st.session_state.indice = 0
 if "df" not in st.session_state:
     st.session_state.df = None
+if "force_refresh" not in st.session_state:
+    st.session_state.force_refresh = 0
 
 if uploaded_file:
     if uploaded_file.name.endswith('.csv'):
@@ -49,17 +52,16 @@ if st.session_state.df is not None:
     total = len(df)
     idx = st.session_state.indice
 
-    # Atualizar índice para próxima imagem não validada
-    while idx < total and str(df.iloc[idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
+    # Pular imagens já validadas
+    while idx < total and str(df.iloc[idx].get("Valida", "")).strip() != "":
         idx += 1
     
-    # Sincronizar session_state com índice atual
     st.session_state.indice = idx
 
     # Barra de navegação
     col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
     with col_nav1:
-        total_validadas = len(df[df['Valida'].isin(['SIM', 'NÃO'])])
+        total_validadas = len(df[df['Valida'].str.strip() != ''])
         progresso = total_validadas / total if total > 0 else 0
         st.metric("Progresso", f"{total_validadas}/{total}")
     with col_nav2:
@@ -90,7 +92,7 @@ if st.session_state.df is not None:
             mime="text/csv"
         )
     with col_down2:
-        df_validados = df[df['Valida'].isin(['SIM', 'NÃO'])].copy()
+        df_validados = df[df['Valida'].str.strip() != ''].copy()
         csv_validados = df_validados.to_csv(index=False, sep=";", encoding='utf-8-sig')
         st.download_button(
             label="✅ Apenas VALIDADAS",
@@ -238,89 +240,79 @@ if st.session_state.df is not None:
         st.markdown("### Validação")
         
         if not tem_imagem:
-            st.info("ℹ️ Marcado como **Inválida** (sem imagem)")
-            motivo_selecionado = "SEM IMAGEM"
-            st.markdown(f"**Motivo:** {motivo_selecionado}")
+            st.info("ℹ️ Imagem não carregou - será marcada como **Inválida (SEM IMAGEM)**")
+            
             col_btn1, col_btn2, col_btn3 = st.columns(3)
             with col_btn1:
-                if st.button('✔ Salvar', use_container_width=True, key=f"btn_s_{idx}", type="primary"):
-                    df.at[idx, 'Valida'] = 'NÃO'
-                    df.at[idx, 'Motivos'] = motivo_selecionado
-                    df.at[idx, 'Data_Validacao'] = str(datetime.now())
-                    st.session_state.df = df
-                    # Avançar para próxima não validada
-                    next_idx = idx + 1
-                    while next_idx < total and str(df.iloc[next_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
-                        next_idx += 1
-                    st.session_state.indice = next_idx
+                if st.button('✔ Salvar como SEM IMAGEM', use_container_width=True, key=f"btn_sem_img_{idx}", type="primary"):
+                    st.session_state.df.at[idx, 'Valida'] = 'NÃO'
+                    st.session_state.df.at[idx, 'Motivos'] = 'SEM IMAGEM'
+                    st.session_state.df.at[idx, 'Data_Validacao'] = str(datetime.now())
+                    st.session_state.indice = idx + 1
+                    st.session_state.force_refresh += 1
                     st.rerun()
             with col_btn2:
-                if st.button('← Voltar', use_container_width=True, key=f"btn_v_{idx}"):
+                if st.button('← Voltar', use_container_width=True, key=f"btn_v_sem_{idx}"):
                     if idx > 0:
-                        # Voltar para anterior não validada
-                        prev_idx = idx - 1
-                        while prev_idx > 0 and str(df.iloc[prev_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
-                            prev_idx -= 1
-                        st.session_state.indice = prev_idx
+                        st.session_state.indice = idx - 1
                         st.rerun()
             with col_btn3:
-                if st.button('→ Próxima', use_container_width=True, key=f"btn_p_{idx}"):
-                    # Avançar sem salvar
-                    next_idx = idx + 1
-                    while next_idx < total and str(df.iloc[next_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
-                        next_idx += 1
-                    st.session_state.indice = next_idx
+                if st.button('→ Pular', use_container_width=True, key=f"btn_p_sem_{idx}"):
+                    st.session_state.indice = idx + 1
                     st.rerun()
         else:
-            valido = st.radio('Validação:', ['Válida ✔', 'Inválida ✗'], key=f"radio_{idx}")
-            motivo_selecionado = None
-            if valido == 'Inválida ✗':
-                st.markdown("**Selecione motivo:**")
-                motivos_opcoes = ['FRAUDE', 'NÃO É PÉ', 'OUTRA CATEGORIA', 'OUTRO PRODUTO']
-                motivo_selecionado = st.radio(
-                    'M:',
-                    motivos_opcoes,
-                    key=f"mot_{idx}",
-                    label_visibility="collapsed"
-                )
-            col_btn1, col_btn2, col_btn3 = st.columns(3)
-            with col_btn1:
-                if st.button('✔ Salvar', use_container_width=True, key=f"btn_s_{idx}", type="primary"):
+            # Formulário de validação
+            with st.form(key=f"form_validacao_{idx}"):
+                valido = st.radio('Validação:', ['Válida ✔', 'Inválida ✗'], key=f"radio_{idx}")
+                
+                motivo_selecionado = None
+                if valido == 'Inválida ✗':
+                    st.markdown("**Selecione o motivo:**")
+                    motivos_opcoes = ['FRAUDE', 'NÃO É PÉ', 'OUTRA CATEGORIA', 'OUTRO PRODUTO']
+                    motivo_selecionado = st.radio(
+                        'Motivo:',
+                        motivos_opcoes,
+                        key=f"mot_{idx}",
+                        label_visibility="collapsed"
+                    )
+                
+                # Botões dentro do form
+                col_btn1, col_btn2, col_btn3 = st.columns(3)
+                with col_btn1:
+                    salvar = st.form_submit_button('✔ Salvar e Avançar', use_container_width=True, type="primary")
+                with col_btn2:
+                    voltar = st.form_submit_button('← Voltar', use_container_width=True)
+                with col_btn3:
+                    pular = st.form_submit_button('→ Pular', use_container_width=True)
+                
+                # Processar ações
+                if salvar:
                     if valido == 'Inválida ✗' and motivo_selecionado is None:
                         st.error('⚠️ Selecione um motivo antes de salvar!')
                     else:
-                        df.at[idx, 'Valida'] = 'SIM' if valido == 'Válida ✔' else 'NÃO'
-                        df.at[idx, 'Motivos'] = motivo_selecionado if motivo_selecionado else ""
-                        df.at[idx, 'Data_Validacao'] = str(datetime.now())
-                        st.session_state.df = df
-                        # Avançar para próxima não validada
-                        next_idx = idx + 1
-                        while next_idx < total and str(df.iloc[next_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
-                            next_idx += 1
-                        st.session_state.indice = next_idx
+                        st.session_state.df.at[idx, 'Valida'] = 'SIM' if valido == 'Válida ✔' else 'NÃO'
+                        st.session_state.df.at[idx, 'Motivos'] = motivo_selecionado if motivo_selecionado else ""
+                        st.session_state.df.at[idx, 'Data_Validacao'] = str(datetime.now())
+                        st.session_state.indice = idx + 1
+                        st.session_state.force_refresh += 1
+                        st.success(f"✅ Salvo! {'Válida' if valido == 'Válida ✔' else 'Inválida'}")
                         st.rerun()
-            with col_btn2:
-                if st.button('← Voltar', use_container_width=True, key=f"btn_v_{idx}"):
+                
+                if voltar:
                     if idx > 0:
-                        # Voltar para anterior não validada
-                        prev_idx = idx - 1
-                        while prev_idx > 0 and str(df.iloc[prev_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
-                            prev_idx -= 1
-                        st.session_state.indice = prev_idx
+                        st.session_state.indice = idx - 1
                         st.rerun()
-            with col_btn3:
-                if st.button('→ Próxima', use_container_width=True, key=f"btn_p_{idx}"):
-                    # Avançar sem salvar
-                    next_idx = idx + 1
-                    while next_idx < total and str(df.iloc[next_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
-                        next_idx += 1
-                    st.session_state.indice = next_idx
+                
+                if pular:
+                    st.session_state.indice = idx + 1
                     st.rerun()
 
     else:
         st.success('✅ Todas as imagens foram validadas!')
         total_validas = len(df[df['Valida'] == 'SIM'])
         total_invalidas = len(df[df['Valida'] == 'NÃO'])
+        total_validadas = total_validas + total_invalidas
+        
         col_stat1, col_stat2, col_stat3 = st.columns(3)
         with col_stat1:
             st.metric("Total Validadas", total_validadas)
@@ -328,9 +320,11 @@ if st.session_state.df is not None:
             st.metric("Válidas", total_validas)
         with col_stat3:
             st.metric("Inválidas", total_invalidas)
+        
         st.dataframe(df, use_container_width=True)
-        if st.button("🔄 Reiniciar"):
+        
+        if st.button("🔄 Reiniciar Validação"):
             st.session_state.indice = 0
             st.rerun()
 else:
-    st.info('📤 Carregue um CSV ou XLSX com: URL_Imagem, Categoria, Data, CNPJ')
+    st.info('📤 Carregue um CSV ou XLSX com as imagens para validar')
