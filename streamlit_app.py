@@ -69,9 +69,16 @@ if st.session_state.df is not None:
         val = str(row.get("Valida", "")).strip()
         return val != "" and val != "nan"
 
-    # Pular imagens já validadas
-    while idx < total and esta_validada(df.iloc[idx]):
-        idx += 1
+    # Pular imagens já validadas APENAS se não estamos voltando manualmente
+    if "voltando" not in st.session_state:
+        st.session_state.voltando = False
+    
+    if not st.session_state.voltando:
+        while idx < total and esta_validada(df.iloc[idx]):
+            idx += 1
+    
+    # Resetar flag de volta
+    st.session_state.voltando = False
     
     # Atualizar índice
     if idx != st.session_state.indice:
@@ -268,6 +275,13 @@ if st.session_state.df is not None:
             st.write(f"Índice atual: {idx}")
             st.write(f"Valida atual: '{df.iloc[idx]['Valida']}'")
             st.write(f"Total validadas: {total_validadas}")
+            st.write(f"Voltando: {st.session_state.voltando}")
+        
+        # Mostrar status da linha atual
+        linha_ja_validada = esta_validada(linha)
+        if linha_ja_validada:
+            st.warning(f"⚠️ Esta linha já foi validada anteriormente como: **{df.iloc[idx]['Valida']}** {f\"- {df.iloc[idx]['Motivos']}\" if df.iloc[idx]['Motivos'] else ''}")
+            st.info("💡 Você pode revisar e salvar novamente para alterar a validação.")
         
         if not tem_imagem:
             st.warning("⚠️ Imagem não carregou - será marcada como **SEM IMAGEM**")
@@ -311,8 +325,11 @@ if st.session_state.df is not None:
                     st.rerun()
             with col_btn2:
                 if st.button('← Voltar', use_container_width=True, key=f"btn_v_sem_{idx}"):
-                    st.session_state.indice = max(0, idx - 1)
-                    st.rerun()
+                    # Voltar para a linha anterior
+                    if idx > 0:
+                        st.session_state.indice = idx - 1
+                        st.session_state.voltando = True
+                        st.rerun()
             with col_btn3:
                 if st.button('→ Pular', use_container_width=True, key=f"btn_p_sem_{idx}"):
                     st.session_state.indice = idx + 1
@@ -382,8 +399,11 @@ if st.session_state.df is not None:
             
             with col_btn2:
                 if st.button('← Voltar', use_container_width=True, key=f"btn_v_{idx}"):
-                    st.session_state.indice = max(0, idx - 1)
-                    st.rerun()
+                    # Voltar para a linha anterior (permite revisar validadas)
+                    if idx > 0:
+                        st.session_state.indice = idx - 1
+                        st.session_state.voltando = True
+                        st.rerun()
             
             with col_btn3:
                 if st.button('→ Pular (não salvar)', use_container_width=True, key=f"btn_p_{idx}"):
