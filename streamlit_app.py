@@ -280,7 +280,10 @@ if st.session_state.df is not None:
         # Mostrar status da linha atual
         linha_ja_validada = esta_validada(linha)
         if linha_ja_validada:
-            st.warning(f"⚠️ Esta linha já foi validada anteriormente como: **{df.iloc[idx]['Valida']}** {f\"- {df.iloc[idx]['Motivos']}\" if df.iloc[idx]['Motivos'] else ''}")
+            valida_anterior = df.iloc[idx]['Valida']
+            motivo_anterior = df.iloc[idx]['Motivos']
+            mensagem_motivo = f" - {motivo_anterior}" if motivo_anterior else ""
+            st.warning(f"⚠️ Esta linha já foi validada anteriormente como: **{valida_anterior}**{mensagem_motivo}")
             st.info("💡 Você pode revisar e salvar novamente para alterar a validação.")
         
         if not tem_imagem:
