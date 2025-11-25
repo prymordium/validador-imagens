@@ -8,61 +8,82 @@ from io import BytesIO
 st.set_page_config(page_title="Validação de Imagens", layout="wide")
 st.title("Validador de Imagens")
 
-uploaded_file = st.file_uploader("Faça upload do arquivo de imagens (.csv, .xlsx)", type=["csv", "xlsx"])
-
 # Inicializar session_state
 if "indice" not in st.session_state:
     st.session_state.indice = 0
 if "df" not in st.session_state:
     st.session_state.df = None
-if "force_refresh" not in st.session_state:
-    st.session_state.force_refresh = 0
+if "uploaded_file_id" not in st.session_state:
+    st.session_state.uploaded_file_id = None
 
-if uploaded_file:
-    if uploaded_file.name.endswith('.csv'):
-        try:
-            df = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='utf-8')
-        except:
-            uploaded_file.seek(0)
+uploaded_file = st.file_uploader("Faça upload do arquivo de imagens (.csv, .xlsx)", type=["csv", "xlsx"])
+
+# Carregar arquivo apenas uma vez
+if uploaded_file is not None:
+    file_id = uploaded_file.file_id
+    
+    # Se é um novo arquivo, recarregar
+    if st.session_state.uploaded_file_id != file_id:
+        if uploaded_file.name.endswith('.csv'):
             try:
-                df = pd.read_csv(uploaded_file, sep=';', encoding='utf-8')
+                df = pd.read_csv(uploaded_file, sep=None, engine='python', encoding='utf-8')
             except:
                 uploaded_file.seek(0)
-                df = pd.read_csv(uploaded_file, sep=',', encoding='latin-1')
-    else:
-        df = pd.read_excel(uploaded_file)
+                try:
+                    df = pd.read_csv(uploaded_file, sep=';', encoding='utf-8')
+                except:
+                    uploaded_file.seek(0)
+                    df = pd.read_csv(uploaded_file, sep=',', encoding='latin-1')
+        else:
+            df = pd.read_excel(uploaded_file)
 
-    st.write("**Colunas detectadas:**", df.columns.tolist())
-    st.write(f"**Total de linhas:** {len(df)}")
-    
-    # Mostrar amostra das primeiras linhas para debug
-    with st.expander("🔍 Ver amostra dos dados"):
-        st.dataframe(df.head(3))
-    
-    for col in ["Valida", "Motivos", "Data_Validacao"]:
-        if col not in df.columns:
-            df[col] = ""
+        st.write("**Colunas detectadas:**", df.columns.tolist())
+        st.write(f"**Total de linhas:** {len(df)}")
+        
+        # Mostrar amostra das primeiras linhas para debug
+        with st.expander("🔍 Ver amostra dos dados"):
+            st.dataframe(df.head(3))
+        
+        # Adicionar colunas de validação se não existirem
+        for col in ["Valida", "Motivos", "Data_Validacao"]:
+            if col not in df.columns:
+                df[col] = ""
+        
+        # Converter colunas para string para evitar problemas
+        df['Valida'] = df['Valida'].astype(str)
+        df['Motivos'] = df['Motivos'].astype(str)
+        df['Data_Validacao'] = df['Data_Validacao'].astype(str)
 
-    st.session_state.df = df
-else:
-    df = st.session_state.df
+        st.session_state.df = df
+        st.session_state.uploaded_file_id = file_id
+        st.session_state.indice = 0
 
+# Usar o DataFrame do session_state
 if st.session_state.df is not None:
     df = st.session_state.df
     total = len(df)
     idx = st.session_state.indice
 
+    # Função para verificar se está validada
+    def esta_validada(row):
+        val = str(row.get("Valida", "")).strip()
+        return val != "" and val != "nan"
+
     # Pular imagens já validadas
-    while idx < total and str(df.iloc[idx].get("Valida", "")).strip() != "":
+    while idx < total and esta_validada(df.iloc[idx]):
         idx += 1
     
-    st.session_state.indice = idx
+    # Atualizar índice
+    if idx != st.session_state.indice:
+        st.session_state.indice = idx
+
+    # Calcular progresso
+    total_validadas = sum(df.apply(esta_validada, axis=1))
+    progresso = total_validadas / total if total > 0 else 0
 
     # Barra de navegação
     col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
     with col_nav1:
-        total_validadas = len(df[df['Valida'].str.strip() != ''])
-        progresso = total_validadas / total if total > 0 else 0
         st.metric("Progresso", f"{total_validadas}/{total}")
     with col_nav2:
         st.progress(progresso)
@@ -72,9 +93,9 @@ if st.session_state.df is not None:
             min_value=1,
             max_value=total,
             value=idx + 1,
-            key="nav_input"
+            key=f"nav_input_{idx}"
         )
-        if linha_saltar != idx + 1:
+        if st.button("Ir", key=f"btn_ir_{idx}"):
             st.session_state.indice = linha_saltar - 1
             st.rerun()
 
@@ -89,23 +110,25 @@ if st.session_state.df is not None:
             label="📥 Base COMPLETA",
             data=csv_completa,
             file_name=f"validacao_{datetime.now().strftime('%d_%m_%Y_%H%M%S')}.csv",
-            mime="text/csv"
+            mime="text/csv",
+            key=f"down_completa_{idx}"
         )
     with col_down2:
-        df_validados = df[df['Valida'].str.strip() != ''].copy()
+        df_validados = df[df.apply(esta_validada, axis=1)].copy()
         csv_validados = df_validados.to_csv(index=False, sep=";", encoding='utf-8-sig')
         st.download_button(
             label="✅ Apenas VALIDADAS",
             data=csv_validados,
             file_name=f"validadas_{datetime.now().strftime('%d_%m_%Y_%H%M%S')}.csv",
-            mime="text/csv"
+            mime="text/csv",
+            key=f"down_validadas_{idx}"
         )
     st.divider()
 
     if idx < total:
         linha = df.iloc[idx]
         
-        # Detectar coluna de URL (várias variações possíveis)
+        # Detectar coluna de URL
         col_url = None
         possiveis_urls = ['URL_Imagem', 'url_imagem', 'URL', 'url', 'link', 'Link', 'image_url', 'imagem']
         for col in possiveis_urls:
@@ -113,14 +136,12 @@ if st.session_state.df is not None:
                 col_url = col
                 break
         
-        # Se não encontrou, pega a primeira coluna que contém 'url' ou 'http'
         if not col_url:
             for col in df.columns:
                 if 'url' in col.lower() or 'link' in col.lower():
                     col_url = col
                     break
         
-        # Se ainda não encontrou, verifica se alguma coluna tem URLs nas primeiras linhas
         if not col_url:
             for col in df.columns:
                 amostra = str(df[col].iloc[0]) if len(df) > 0 else ""
@@ -138,7 +159,6 @@ if st.session_state.df is not None:
         erro_imagem = ""
         img = None
         
-        # Debug: mostrar qual coluna foi detectada
         if col_url:
             st.info(f"📍 Coluna de URL detectada: **{col_url}**")
         else:
@@ -147,39 +167,24 @@ if st.session_state.df is not None:
         if col_url and pd.notna(linha[col_url]):
             url_imagem = str(linha[col_url]).strip()
             
-            # Limpeza da URL
             if url_imagem and url_imagem.lower() != "nan" and url_imagem != "":
-                # Garantir protocolo HTTPS
                 if not (url_imagem.startswith("http://") or url_imagem.startswith("https://")):
                     url_imagem = "https://" + url_imagem
                 
                 try:
-                    # Headers para simular navegador e evitar bloqueios
                     headers = {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
                         'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'Connection': 'keep-alive',
                     }
                     
-                    # Requisição com timeout maior e headers
-                    response = requests.get(
-                        url_imagem, 
-                        timeout=30, 
-                        allow_redirects=True,
-                        headers=headers,
-                        verify=True  # Verificar SSL
-                    )
+                    response = requests.get(url_imagem, timeout=30, allow_redirects=True, headers=headers, verify=True)
                     response.raise_for_status()
                     
-                    # Verificar se é realmente uma imagem
                     content_type = response.headers.get('content-type', '')
                     if 'image' not in content_type.lower() and len(response.content) < 100:
                         erro_imagem = f"URL não retorna imagem válida (tipo: {content_type})"
                     else:
                         img = Image.open(BytesIO(response.content))
-                        # Converter para RGB se necessário
                         if img.mode in ('RGBA', 'LA', 'P'):
                             img = img.convert('RGB')
                         tem_imagem = True
@@ -190,14 +195,12 @@ if st.session_state.df is not None:
                     erro_imagem = "🔌 Erro de conexão: Não foi possível conectar ao servidor"
                 except requests.exceptions.HTTPError as e:
                     erro_imagem = f"❌ HTTP {e.response.status_code}: {e.response.reason}"
-                except requests.exceptions.SSLError:
-                    erro_imagem = "🔒 Erro SSL: Certificado inválido ou problema de segurança"
                 except Exception as e:
                     erro_imagem = f"⚠️ Erro: {str(e)[:100]}"
             else:
                 erro_imagem = "URL vazia ou inválida"
         else:
-            erro_imagem = "Coluna URL_Imagem não encontrada"
+            erro_imagem = "Sem URL"
 
         # Layout
         col1, col2 = st.columns([2, 1])
@@ -205,7 +208,6 @@ if st.session_state.df is not None:
             st.markdown(f"## Imagem {idx+1} de {total}")
             if tem_imagem and img:
                 try:
-                    # Redimensionar mantendo proporção 9:16 (vertical)
                     largura = 360
                     altura = int(largura * 16 / 9)
                     img_resized = img.resize((largura, altura), Image.Resampling.LANCZOS)
@@ -215,9 +217,9 @@ if st.session_state.df is not None:
                     st.code(f"URL: {url_imagem}", language=None)
             elif erro_imagem:
                 st.error(f"❌ {erro_imagem}")
-                st.code(f"URL: {url_imagem}", language=None)
-                # Botão para testar URL no navegador
-                st.markdown(f"[🔗 Testar URL no navegador]({url_imagem})")
+                if url_imagem:
+                    st.code(f"URL: {url_imagem}", language=None)
+                    st.markdown(f"[🔗 Testar URL no navegador]({url_imagem})")
             else:
                 st.warning("⚠️ Sem imagem disponível")
         
@@ -225,101 +227,103 @@ if st.session_state.df is not None:
             st.markdown("### Informações do Item")
             if col_url:
                 url_val = str(linha[col_url]) if pd.notna(linha[col_url]) else "N/A"
-                st.text_area("**URL:**", url_val, height=80, disabled=True)
+                st.text_area("**URL:**", url_val, height=80, disabled=True, key=f"url_{idx}")
             if col_categoria:
                 cat = str(linha[col_categoria]) if pd.notna(linha[col_categoria]) else "N/A"
-                st.text_input("**Categoria:**", cat, disabled=True)
+                st.text_input("**Categoria:**", cat, disabled=True, key=f"cat_{idx}")
             if col_data:
                 data = str(linha[col_data]) if pd.notna(linha[col_data]) else "N/A"
-                st.text_input("**Data:**", data, disabled=True)
+                st.text_input("**Data:**", data, disabled=True, key=f"data_{idx}")
             if col_cnpj:
                 cnpj = str(linha[col_cnpj]) if pd.notna(linha[col_cnpj]) else "N/A"
-                st.text_input("**CNPJ:**", cnpj, disabled=True)
+                st.text_input("**CNPJ:**", cnpj, disabled=True, key=f"cnpj_{idx}")
 
         st.divider()
         st.markdown("### Validação")
         
+        # Debug info
+        with st.expander("🐛 Debug Info"):
+            st.write(f"Índice atual: {idx}")
+            st.write(f"Valida atual: '{df.iloc[idx]['Valida']}'")
+            st.write(f"Total validadas: {total_validadas}")
+        
         if not tem_imagem:
-            st.info("ℹ️ Imagem não carregou - será marcada como **Inválida (SEM IMAGEM)**")
+            st.warning("⚠️ Imagem não carregou - será marcada como **SEM IMAGEM**")
             
             col_btn1, col_btn2, col_btn3 = st.columns(3)
             with col_btn1:
-                if st.button('✔ Salvar como SEM IMAGEM', use_container_width=True, key=f"btn_sem_img_{idx}", type="primary"):
-                    st.session_state.df.at[idx, 'Valida'] = 'NÃO'
-                    st.session_state.df.at[idx, 'Motivos'] = 'SEM IMAGEM'
-                    st.session_state.df.at[idx, 'Data_Validacao'] = str(datetime.now())
+                if st.button('✔ Salvar SEM IMAGEM', use_container_width=True, key=f"btn_sem_{idx}", type="primary"):
+                    st.session_state.df.loc[idx, 'Valida'] = 'NÃO'
+                    st.session_state.df.loc[idx, 'Motivos'] = 'SEM IMAGEM'
+                    st.session_state.df.loc[idx, 'Data_Validacao'] = str(datetime.now())
                     st.session_state.indice = idx + 1
-                    st.session_state.force_refresh += 1
+                    st.success("✅ Salvo como SEM IMAGEM!")
                     st.rerun()
             with col_btn2:
                 if st.button('← Voltar', use_container_width=True, key=f"btn_v_sem_{idx}"):
-                    if idx > 0:
-                        st.session_state.indice = idx - 1
-                        st.rerun()
+                    st.session_state.indice = max(0, idx - 1)
+                    st.rerun()
             with col_btn3:
                 if st.button('→ Pular', use_container_width=True, key=f"btn_p_sem_{idx}"):
                     st.session_state.indice = idx + 1
                     st.rerun()
         else:
-            # Formulário de validação
-            with st.form(key=f"form_validacao_{idx}"):
-                valido = st.radio('Validação:', ['Válida ✔', 'Inválida ✗'], key=f"radio_{idx}")
-                
-                motivo_selecionado = None
-                if valido == 'Inválida ✗':
-                    st.markdown("**Selecione o motivo:**")
-                    motivos_opcoes = ['FRAUDE', 'NÃO É PÉ', 'OUTRA CATEGORIA', 'OUTRO PRODUTO']
-                    motivo_selecionado = st.radio(
-                        'Motivo:',
-                        motivos_opcoes,
-                        key=f"mot_{idx}",
-                        label_visibility="collapsed"
-                    )
-                
-                # Botões dentro do form
-                col_btn1, col_btn2, col_btn3 = st.columns(3)
-                with col_btn1:
-                    salvar = st.form_submit_button('✔ Salvar e Avançar', use_container_width=True, type="primary")
-                with col_btn2:
-                    voltar = st.form_submit_button('← Voltar', use_container_width=True)
-                with col_btn3:
-                    pular = st.form_submit_button('→ Pular', use_container_width=True)
-                
-                # Processar ações
-                if salvar:
-                    if valido == 'Inválida ✗' and motivo_selecionado is None:
-                        st.error('⚠️ Selecione um motivo antes de salvar!')
-                    else:
-                        st.session_state.df.at[idx, 'Valida'] = 'SIM' if valido == 'Válida ✔' else 'NÃO'
-                        st.session_state.df.at[idx, 'Motivos'] = motivo_selecionado if motivo_selecionado else ""
-                        st.session_state.df.at[idx, 'Data_Validacao'] = str(datetime.now())
-                        st.session_state.indice = idx + 1
-                        st.session_state.force_refresh += 1
-                        st.success(f"✅ Salvo! {'Válida' if valido == 'Válida ✔' else 'Inválida'}")
-                        st.rerun()
-                
-                if voltar:
-                    if idx > 0:
-                        st.session_state.indice = idx - 1
-                        st.rerun()
-                
-                if pular:
+            # Radio buttons fora do form
+            valido = st.radio('Como deseja classificar esta imagem?', 
+                            ['Válida ✔', 'Inválida ✗'], 
+                            key=f"radio_{idx}")
+            
+            motivo_selecionado = ""
+            if valido == 'Inválida ✗':
+                st.markdown("**Selecione o motivo da invalidação:**")
+                motivos_opcoes = ['FRAUDE', 'NÃO É PÉ', 'OUTRA CATEGORIA', 'OUTRO PRODUTO']
+                motivo_selecionado = st.radio(
+                    'Motivo:',
+                    motivos_opcoes,
+                    key=f"mot_{idx}",
+                    label_visibility="collapsed"
+                )
+            
+            # Botões de ação
+            col_btn1, col_btn2, col_btn3 = st.columns(3)
+            with col_btn1:
+                if st.button('✔ Salvar e Avançar', use_container_width=True, key=f"btn_s_{idx}", type="primary"):
+                    # Salvar no DataFrame
+                    resultado = 'SIM' if valido == 'Válida ✔' else 'NÃO'
+                    st.session_state.df.loc[idx, 'Valida'] = resultado
+                    st.session_state.df.loc[idx, 'Motivos'] = motivo_selecionado
+                    st.session_state.df.loc[idx, 'Data_Validacao'] = str(datetime.now())
+                    
+                    # Avançar
+                    st.session_state.indice = idx + 1
+                    
+                    # Feedback
+                    st.success(f"✅ Salvo como: {resultado} {f'- {motivo_selecionado}' if motivo_selecionado else ''}")
+                    st.rerun()
+            
+            with col_btn2:
+                if st.button('← Voltar', use_container_width=True, key=f"btn_v_{idx}"):
+                    st.session_state.indice = max(0, idx - 1)
+                    st.rerun()
+            
+            with col_btn3:
+                if st.button('→ Pular (não salvar)', use_container_width=True, key=f"btn_p_{idx}"):
                     st.session_state.indice = idx + 1
                     st.rerun()
 
     else:
-        st.success('✅ Todas as imagens foram validadas!')
+        st.success('🎉 Todas as imagens foram validadas!')
+        
         total_validas = len(df[df['Valida'] == 'SIM'])
         total_invalidas = len(df[df['Valida'] == 'NÃO'])
-        total_validadas = total_validas + total_invalidas
         
         col_stat1, col_stat2, col_stat3 = st.columns(3)
         with col_stat1:
             st.metric("Total Validadas", total_validadas)
         with col_stat2:
-            st.metric("Válidas", total_validas)
+            st.metric("✅ Válidas", total_validas)
         with col_stat3:
-            st.metric("Inválidas", total_invalidas)
+            st.metric("❌ Inválidas", total_invalidas)
         
         st.dataframe(df, use_container_width=True)
         
@@ -327,4 +331,9 @@ if st.session_state.df is not None:
             st.session_state.indice = 0
             st.rerun()
 else:
-    st.info('📤 Carregue um CSV ou XLSX com as imagens para validar')
+    st.info('📤 **Carregue um arquivo CSV ou XLSX para começar a validação**')
+    st.markdown("""
+    O arquivo deve conter:
+    - Uma coluna com URLs das imagens
+    - Colunas opcionais: Categoria, Data, CNPJ
+    """)
