@@ -4,6 +4,7 @@ from datetime import datetime
 from PIL import Image
 import requests
 from io import BytesIO
+import chardet
 
 st.set_page_config(page_title="Validação de Imagens", layout="wide")
 st.title("Validador de Imagens")
@@ -18,11 +19,26 @@ if "df" not in st.session_state:
 
 if uploaded_file:
     if uploaded_file.name.endswith('.csv'):
-        df = pd.read_csv(uploaded_file)
+        # Detecta encoding
+        raw_data = uploaded_file.read()
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
+        
+        # Tenta ler com diferentes separadores
+        try:
+            df = pd.read_csv(uploaded_file, sep=';', encoding=encoding)
+        except:
+            uploaded_file.seek(0)
+            try:
+                df = pd.read_csv(uploaded_file, sep=',', encoding=encoding)
+            except:
+                uploaded_file.seek(0)
+                df = pd.read_csv(uploaded_file, encoding=encoding)
     else:
         df = pd.read_excel(uploaded_file)
 
     st.write("**Colunas detectadas no arquivo:**", df.columns.tolist())
+    st.write(f"**Total de linhas:** {len(df)}")
     
     # Adiciona colunas de validação se não existirem
     for col in ["Valida", "Motivos", "Data_Validacao"]:
@@ -45,34 +61,37 @@ if st.session_state.df is not None:
     if idx < total:
         linha = df.iloc[idx]
         
-        # Detecta nomes de coluna flexivelmente
+        # Detecta nomes de coluna flexivelmente (remove espaços)
         col_url = None
         col_categoria = None
         col_data = None
         col_cnpj = None
         
+        # Normaliza nomes das colunas
+        colunas_normalizadas = {col.strip().lower(): col for col in df.columns}
+        
         # Busca URL/Imagem
-        for candidate in ["CAMINHO_LOCAL", "URL_Imagem", "Imagem", "URL", "url", "link"]:
-            if candidate in df.columns:
-                col_url = candidate
+        for candidate in ["url_imagem", "url", "imagem", "link", "caminho_local"]:
+            if candidate in colunas_normalizadas:
+                col_url = colunas_normalizadas[candidate]
                 break
         
         # Busca Categoria
-        for candidate in ["Categoria", "categoria", "Categoria_Item", "category"]:
-            if candidate in df.columns:
-                col_categoria = candidate
+        for candidate in ["categoria", "category", "categoria_item"]:
+            if candidate in colunas_normalizadas:
+                col_categoria = colunas_normalizadas[candidate]
                 break
         
         # Busca Data
-        for candidate in ["Data", "data", "Data_Envio", "date"]:
-            if candidate in df.columns:
-                col_data = candidate
+        for candidate in ["data", "date", "data_envio"]:
+            if candidate in colunas_normalizadas:
+                col_data = colunas_normalizadas[candidate]
                 break
         
         # Busca CNPJ
-        for candidate in ["CNPJ", "cnpj", "Fornecedor", "supplier"]:
-            if candidate in df.columns:
-                col_cnpj = candidate
+        for candidate in ["cnpj", "fornecedor", "supplier"]:
+            if candidate in colunas_normalizadas:
+                col_cnpj = colunas_normalizadas[candidate]
                 break
 
         # Layout com imagem em destaque
@@ -84,11 +103,12 @@ if st.session_state.df is not None:
             # Imagem da web ou local
             if col_url and str(linha[col_url]).strip():
                 try:
-                    if "http" in str(linha[col_url]):
-                        resp = requests.get(str(linha[col_url]), timeout=15)
+                    url_imagem = str(linha[col_url]).strip()
+                    if "http" in url_imagem:
+                        resp = requests.get(url_imagem, timeout=15)
                         img = Image.open(BytesIO(resp.content))
                     else:
-                        img = Image.open(str(linha[col_url]))
+                        img = Image.open(url_imagem)
                     
                     # Resize para 9:16 (vertical)
                     largura = 360
@@ -96,16 +116,17 @@ if st.session_state.df is not None:
                     img = img.resize((largura, altura))
                     st.image(img, use_column_width=True)
                 except Exception as e:
-                    st.error(f"Erro ao carregar imagem: {e}")
+                    st.error(f"❌ Erro ao carregar imagem: {e}")
             else:
-                st.warning("Sem imagem nesta linha")
+                st.warning("⚠️ Sem imagem nesta linha")
         
         with col2:
             st.markdown("### Informações do Item")
             
             # Exibe dados com fallback se vazios
             if col_url:
-                st.text_area("**URL/Caminho:**", str(linha[col_url]), height=60, disabled=True)
+                url_val = str(linha[col_url]) if pd.notna(linha[col_url]) else "N/A"
+                st.text_area("**URL/Caminho:**", url_val, height=60, disabled=True)
             
             if col_categoria:
                 categoria = str(linha[col_categoria]) if pd.notna(linha[col_categoria]) else "N/A"
@@ -122,7 +143,7 @@ if st.session_state.df is not None:
         st.divider()
         
         st.markdown("### Validação")
-        valido = st.radio('Selecione a validação:', ['Válida ✓', 'Inválida ✗'])
+        valido = st.radio('Selecione a validação:', ['Válida ✓', 'Inválida ✗'], key=f"radio_{idx}")
         
         motivos = []
         if valido == 'Inválida ✗':
@@ -136,10 +157,10 @@ if st.session_state.df is not None:
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
-            btn_salvar = st.button('✓ Salvar resposta', use_container_width=True)
+            btn_salvar = st.button('✓ Salvar resposta', use_container_width=True, key=f"btn_salvar_{idx}")
         
         with col_btn2:
-            btn_proximo = st.button('→ Próxima imagem', use_container_width=True)
+            btn_proximo = st.button('→ Próxima imagem', use_container_width=True, key=f"btn_proximo_{idx}")
 
         if btn_salvar:
             if valido == 'Inválida ✗' and len(motivos) == 0:
@@ -158,10 +179,10 @@ if st.session_state.df is not None:
 
     else:
         st.success('✅ Finalizado! Todas as imagens já foram validadas.')
-        st.write(st.session_state.df)
+        st.dataframe(st.session_state.df, use_container_width=True)
         
         # Download do resultado
-        csv = st.session_state.df.to_csv(index=False)
+        csv = st.session_state.df.to_csv(index=False, sep=";")
         st.download_button(
             label="📥 Baixar resultado (.csv)",
             data=csv,
@@ -174,4 +195,5 @@ if st.session_state.df is not None:
             st.session_state.indice = 0
 else:
     st.info('📤 Carregue um arquivo .csv ou .xlsx com colunas: URL_Imagem, Categoria, Data, CNPJ')
+
 
