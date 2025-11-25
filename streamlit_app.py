@@ -156,13 +156,16 @@ if st.session_state.df is not None:
             
             st.markdown(f"**Motivo registrado:** {motivo_selecionado}")
             
-            col_btn1, col_btn2 = st.columns(2)
+            col_btn1, col_btn2, col_btn3 = st.columns(3)
             
             with col_btn1:
                 btn_salvar = st.button('✓ Salvar resposta', use_container_width=True, key=f"btn_salvar_{idx}")
             
             with col_btn2:
-                btn_proximo = st.button('→ Próxima imagem', use_container_width=True, key=f"btn_proximo_{idx}")
+                btn_voltar = st.button('← Voltar', use_container_width=True, key=f"btn_voltar_{idx}")
+            
+            with col_btn3:
+                btn_proximo = st.button('→ Próxima', use_container_width=True, key=f"btn_proximo_{idx}")
 
             if btn_salvar:
                 df.at[idx, 'Valida'] = 'NÃO'
@@ -170,8 +173,13 @@ if st.session_state.df is not None:
                 df.at[idx, 'Data_Validacao'] = str(datetime.now())
                 st.session_state.indice = idx + 1
                 st.session_state.df = df
-                st.success('✅ Resposta salva com sucesso!')
-                st.balloons()
+                st.success('✅')
+            
+            if btn_voltar:
+                if idx > 0:
+                    st.session_state.indice = idx - 1
+                else:
+                    st.warning("⚠️ Você está na primeira imagem")
             
             if btn_proximo:
                 st.session_state.indice = idx + 1
@@ -191,13 +199,16 @@ if st.session_state.df is not None:
                     label_visibility="collapsed"
                 )
             
-            col_btn1, col_btn2 = st.columns(2)
+            col_btn1, col_btn2, col_btn3 = st.columns(3)
             
             with col_btn1:
                 btn_salvar = st.button('✓ Salvar resposta', use_container_width=True, key=f"btn_salvar_{idx}")
             
             with col_btn2:
-                btn_proximo = st.button('→ Próxima imagem', use_container_width=True, key=f"btn_proximo_{idx}")
+                btn_voltar = st.button('← Voltar', use_container_width=True, key=f"btn_voltar_{idx}")
+            
+            with col_btn3:
+                btn_proximo = st.button('→ Próxima', use_container_width=True, key=f"btn_proximo_{idx}")
 
             if btn_salvar:
                 if valido == 'Inválida ✗' and motivo_selecionado is None:
@@ -208,24 +219,61 @@ if st.session_state.df is not None:
                     df.at[idx, 'Data_Validacao'] = str(datetime.now())
                     st.session_state.indice = idx + 1
                     st.session_state.df = df
-                    st.success('✅ Resposta salva com sucesso!')
-                    st.balloons()
+                    st.success('✅')
+            
+            if btn_voltar:
+                if idx > 0:
+                    st.session_state.indice = idx - 1
+                else:
+                    st.warning("⚠️ Você está na primeira imagem")
             
             if btn_proximo:
                 st.session_state.indice = idx + 1
 
     else:
         st.success('✅ Finalizado! Todas as imagens já foram validadas.')
-        st.dataframe(st.session_state.df, use_container_width=True)
         
-        # Download do resultado
-        csv = st.session_state.df.to_csv(index=False, sep=";")
+        # Estatísticas
+        total_validadas = len(df[df['Valida'].isin(['SIM', 'NÃO'])])
+        total_validas = len(df[df['Valida'] == 'SIM'])
+        total_invalidas = len(df[df['Valida'] == 'NÃO'])
+        
+        col_stat1, col_stat2, col_stat3 = st.columns(3)
+        with col_stat1:
+            st.metric("Total Validadas", total_validadas)
+        with col_stat2:
+            st.metric("Válidas", total_validas)
+        with col_stat3:
+            st.metric("Inválidas", total_invalidas)
+        
+        st.divider()
+        st.dataframe(df, use_container_width=True)
+        
+        st.divider()
+        st.markdown("### 📥 Exportar Resultados")
+        
+        # Download do resultado (APENAS validadas)
+        csv_validadas = df.to_csv(index=False, sep=";")
         st.download_button(
-            label="📥 Baixar resultado (.csv)",
-            data=csv,
-            file_name="validacao_resultado.csv",
-            mime="text/csv"
+            label="📥 Baixar BASE COMPLETA (com validações)",
+            data=csv_validadas,
+            file_name=f"validacao_resultado_{datetime.now().strftime('%d_%m_%Y_%H%M%S')}.csv",
+            mime="text/csv",
+            help="Baixe este arquivo para continuar a validação depois"
         )
+        
+        # Download apenas dos validados
+        df_validados_apenas = df[df['Valida'].isin(['SIM', 'NÃO'])].copy()
+        csv_validados = df_validados_apenas.to_csv(index=False, sep=";")
+        st.download_button(
+            label="✅ Baixar APENAS VALIDADAS",
+            data=csv_validados,
+            file_name=f"validadas_{datetime.now().strftime('%d_%m_%Y_%H%M%S')}.csv",
+            mime="text/csv",
+            help="Apenas imagens que já foram validadas (SIM ou NÃO)"
+        )
+        
+        st.divider()
         
         # Reiniciar
         if st.button("🔄 Reiniciar validação"):
