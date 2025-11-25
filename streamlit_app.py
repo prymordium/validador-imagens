@@ -46,15 +46,12 @@ if st.session_state.df is not None:
 
     # Barra de navegação
     col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
-    
     with col_nav1:
         total_validadas = len(df[df['Valida'].isin(['SIM', 'NÃO'])])
         progresso = total_validadas / total if total > 0 else 0
         st.metric("Progresso", f"{total_validadas}/{total}")
-    
     with col_nav2:
         st.progress(progresso)
-    
     with col_nav3:
         linha_saltar = st.number_input(
             "Ir para linha:",
@@ -72,7 +69,6 @@ if st.session_state.df is not None:
     # Downloads
     st.markdown("### 📥 Opções de Download")
     col_down1, col_down2 = st.columns(2)
-    
     with col_down1:
         csv_completa = df.to_csv(index=False, sep=";")
         st.download_button(
@@ -81,7 +77,6 @@ if st.session_state.df is not None:
             file_name=f"validacao_{datetime.now().strftime('%d_%m_%Y_%H%M%S')}.csv",
             mime="text/csv"
         )
-    
     with col_down2:
         df_validados = df[df['Valida'].isin(['SIM', 'NÃO'])].copy()
         csv_validados = df_validados.to_csv(index=False, sep=";")
@@ -91,62 +86,42 @@ if st.session_state.df is not None:
             file_name=f"validadas_{datetime.now().strftime('%d_%m_%Y_%H%M%S')}.csv",
             mime="text/csv"
         )
-    
     st.divider()
 
     if idx < total:
         linha = df.iloc[idx]
-        
-        # DETECÇÃO CORRIGIDA - procura pelas colunas exatas do arquivo
-        col_url = None
-        col_categoria = None
-        col_data = None
-        col_cnpj = None
-
-        # Verifica as colunas exatas conforme o arquivo
-        if "URLImagem" in df.columns:
-            col_url = "URLImagem"
-        elif "URL_Imagem" in df.columns:
-            col_url = "URL_Imagem"
-        elif "url_imagem" in df.columns:
-            col_url = "url_imagem"
-        
-        if "Categoria" in df.columns:
-            col_categoria = "Categoria"
-        
-        if "Data" in df.columns:
-            col_data = "Data"
-        
-        if "CNPJ" in df.columns:
-            col_cnpj = "CNPJ"
+        col_url = "URL_Imagem" if "URL_Imagem" in df.columns else None
+        col_categoria = "Categoria" if "Categoria" in df.columns else None
+        col_data = "Data" if "Data" in df.columns else None
+        col_cnpj = "CNPJ" if "CNPJ" in df.columns else None
 
         # Carrega imagem
         tem_imagem = False
         url_imagem = ""
         erro_imagem = ""
         img = None
-
+        
         if col_url and pd.notna(linha[col_url]):
             url_imagem = str(linha[col_url]).strip()
             
+            # PATCH: Corrigir para garantir https://
+            if url_imagem and not (url_imagem.startswith("http://") or url_imagem.startswith("https://")):
+                if url_imagem.startswith("www."):
+                    url_imagem = "https://" + url_imagem
+                elif url_imagem.startswith("promo-app-v1.s3.") or url_imagem.startswith("s3.") or url_imagem.startswith("cdn.") or url_imagem.startswith("amazonaws."):
+                    url_imagem = "https://" + url_imagem
+                else:
+                    url_imagem = "https://" + url_imagem  # fallback
+
             if url_imagem and url_imagem.lower() != "nan" and url_imagem != "":
                 try:
-                    if url_imagem.startswith("http"):
-                        response = requests.get(url_imagem, timeout=15, allow_redirects=True)
-                        response.raise_for_status()
-                        img = Image.open(BytesIO(response.content))
-                        tem_imagem = True
-                    else:
-                        img = Image.open(url_imagem)
-                        tem_imagem = True
-                except requests.exceptions.ConnectionError:
-                    erro_imagem = "Erro de conexão"
-                except requests.exceptions.Timeout:
-                    erro_imagem = "URL muito lenta (timeout)"
-                except requests.exceptions.HTTPError as e:
-                    erro_imagem = f"Erro HTTP {response.status_code}"
+                    # Tenta abrir usando requests
+                    response = requests.get(url_imagem, timeout=15, allow_redirects=True)
+                    response.raise_for_status()
+                    img = Image.open(BytesIO(response.content))
+                    tem_imagem = True
                 except Exception as e:
-                    erro_imagem = f"Erro: {str(e)[:80]}"
+                    erro_imagem = f"Erro ao carregar imagem: {str(e)[:80]}"
             else:
                 erro_imagem = "URL vazia"
         else:
@@ -154,10 +129,8 @@ if st.session_state.df is not None:
 
         # Layout
         col1, col2 = st.columns([2, 1])
-        
         with col1:
             st.markdown(f"## Imagem {idx+1} de {total}")
-            
             if tem_imagem and img:
                 try:
                     largura = 360
@@ -170,36 +143,28 @@ if st.session_state.df is not None:
                 st.error(f"❌ {erro_imagem}")
             else:
                 st.warning("⚠️ Sem imagem")
-        
         with col2:
             st.markdown("### Informações do Item")
-            
             if col_url:
                 url_val = str(linha[col_url]) if pd.notna(linha[col_url]) else "N/A"
                 st.text_area("**URL:**", url_val, height=60, disabled=True)
-            
             if col_categoria:
                 cat = str(linha[col_categoria]) if pd.notna(linha[col_categoria]) else "N/A"
                 st.text_input("**Categoria:**", cat, disabled=True)
-            
             if col_data:
                 data = str(linha[col_data]) if pd.notna(linha[col_data]) else "N/A"
                 st.text_input("**Data:**", data, disabled=True)
-            
             if col_cnpj:
                 cnpj = str(linha[col_cnpj]) if pd.notna(linha[col_cnpj]) else "N/A"
                 st.text_input("**CNPJ:**", cnpj, disabled=True)
 
         st.divider()
         st.markdown("### Validação")
-        
         if not tem_imagem:
             st.info("ℹ️ Marcado como **Inválida** (sem imagem)")
             motivo_selecionado = "SEM IMAGEM"
             st.markdown(f"**Motivo:** {motivo_selecionado}")
-            
             col_btn1, col_btn2, col_btn3 = st.columns(3)
-            
             with col_btn1:
                 if st.button('✓ Salvar', use_container_width=True, key=f"btn_s_{idx}"):
                     df.at[idx, 'Valida'] = 'NÃO'
@@ -208,19 +173,15 @@ if st.session_state.df is not None:
                     st.session_state.indice = idx + 1
                     st.session_state.df = df
                     st.success('✅')
-            
             with col_btn2:
                 if st.button('← Voltar', use_container_width=True, key=f"btn_v_{idx}"):
                     if idx > 0:
                         st.session_state.indice = idx - 1
-            
             with col_btn3:
                 if st.button('→ Próxima', use_container_width=True, key=f"btn_p_{idx}"):
                     st.session_state.indice = idx + 1
-        
         else:
             valido = st.radio('Validação:', ['Válida ✓', 'Inválida ✗'], key=f"radio_{idx}")
-            
             motivo_selecionado = None
             if valido == 'Inválida ✗':
                 st.markdown("**Selecione motivo:**")
@@ -231,9 +192,7 @@ if st.session_state.df is not None:
                     key=f"mot_{idx}",
                     label_visibility="collapsed"
                 )
-            
             col_btn1, col_btn2, col_btn3 = st.columns(3)
-            
             with col_btn1:
                 if st.button('✓ Salvar', use_container_width=True, key=f"btn_s_{idx}"):
                     if valido == 'Inválida ✗' and motivo_selecionado is None:
@@ -245,22 +204,18 @@ if st.session_state.df is not None:
                         st.session_state.indice = idx + 1
                         st.session_state.df = df
                         st.success('✅')
-            
             with col_btn2:
                 if st.button('← Voltar', use_container_width=True, key=f"btn_v_{idx}"):
                     if idx > 0:
                         st.session_state.indice = idx - 1
-            
             with col_btn3:
                 if st.button('→ Próxima', use_container_width=True, key=f"btn_p_{idx}"):
                     st.session_state.indice = idx + 1
 
     else:
         st.success('✅ Finalizado!')
-        
         total_validas = len(df[df['Valida'] == 'SIM'])
         total_invalidas = len(df[df['Valida'] == 'NÃO'])
-        
         col_stat1, col_stat2, col_stat3 = st.columns(3)
         with col_stat1:
             st.metric("Total", total_validadas)
@@ -268,10 +223,9 @@ if st.session_state.df is not None:
             st.metric("Válidas", total_validas)
         with col_stat3:
             st.metric("Inválidas", total_invalidas)
-        
         st.dataframe(df, use_container_width=True)
-        
         if st.button("🔄 Reiniciar"):
             st.session_state.indice = 0
 else:
-    st.info('📤 Carregue um CSV ou XLSX com: URLImagem, Categoria, Data, CNPJ')
+    st.info('📤 Carregue um CSV ou XLSX com: URL_Imagem, Categoria, Data, CNPJ')
+
