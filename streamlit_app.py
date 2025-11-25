@@ -69,16 +69,16 @@ if st.session_state.df is not None:
         val = str(row.get("Valida", "")).strip()
         return val != "" and val != "nan"
 
-    # Pular imagens já validadas APENAS se não estamos voltando manualmente
-    if "voltando" not in st.session_state:
-        st.session_state.voltando = False
+    # Pular imagens já validadas APENAS se não estamos em navegação manual
+    if "navegacao_manual" not in st.session_state:
+        st.session_state.navegacao_manual = False
     
-    if not st.session_state.voltando:
+    if not st.session_state.navegacao_manual:
         while idx < total and esta_validada(df.iloc[idx]):
             idx += 1
     
-    # Resetar flag de volta
-    st.session_state.voltando = False
+    # Resetar flag de volta - REMOVIDO para manter estado na interação
+    # st.session_state.voltando = False
     
     # Atualizar índice
     if idx != st.session_state.indice:
@@ -104,6 +104,7 @@ if st.session_state.df is not None:
         )
         if st.button("Ir", key=f"btn_ir_{idx}"):
             st.session_state.indice = linha_saltar - 1
+            st.session_state.navegacao_manual = True
             st.rerun()
 
     st.divider()
@@ -275,7 +276,7 @@ if st.session_state.df is not None:
             st.write(f"Índice atual: {idx}")
             st.write(f"Valida atual: '{df.iloc[idx]['Valida']}'")
             st.write(f"Total validadas: {total_validadas}")
-            st.write(f"Voltando: {st.session_state.voltando}")
+            st.write(f"Navegação Manual: {st.session_state.navegacao_manual}")
         
         # Mostrar status da linha atual
         linha_ja_validada = esta_validada(linha)
@@ -319,6 +320,7 @@ if st.session_state.df is not None:
                                     linhas_replicadas += 1
                     
                     st.session_state.indice = idx + 1
+                    st.session_state.navegacao_manual = False
                     
                     if linhas_replicadas > 0:
                         st.success(f"✅ Salvo como SEM IMAGEM!\n\n🔄 **{linhas_replicadas} linha(s) duplicada(s) replicada(s) automaticamente!**")
@@ -331,11 +333,12 @@ if st.session_state.df is not None:
                     # Voltar para a linha anterior
                     if idx > 0:
                         st.session_state.indice = idx - 1
-                        st.session_state.voltando = True
+                        st.session_state.navegacao_manual = True
                         st.rerun()
             with col_btn3:
                 if st.button('→ Pular', use_container_width=True, key=f"btn_p_sem_{idx}"):
                     st.session_state.indice = idx + 1
+                    st.session_state.navegacao_manual = False
                     st.rerun()
         else:
             # Radio buttons - armazenar seleção no session_state para evitar rerun
@@ -420,6 +423,7 @@ if st.session_state.df is not None:
                     
                     # Avançar
                     st.session_state.indice = idx + 1
+                    st.session_state.navegacao_manual = False
                     
                     # Feedback com informação de replicação
                     mensagem_base = f"✅ Salvo como: {resultado} {f'- {motivo_selecionado}' if motivo_selecionado else ''}"
@@ -435,12 +439,13 @@ if st.session_state.df is not None:
                     # Voltar para a linha anterior (permite revisar validadas)
                     if idx > 0:
                         st.session_state.indice = idx - 1
-                        st.session_state.voltando = True
+                        st.session_state.navegacao_manual = True
                         st.rerun()
             
             with col_btn3:
                 if st.button('→ Pular (não salvar)', use_container_width=True, key=f"btn_p_{idx}"):
                     st.session_state.indice = idx + 1
+                    st.session_state.navegacao_manual = False
                     st.rerun()
 
     else:
