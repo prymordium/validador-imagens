@@ -46,18 +46,33 @@ if st.session_state.df is not None:
     while idx < total and str(df.iloc[idx].get("Valida", "")).upper() in ["SIM", "NÃO"]:
         idx += 1
 
-    # Barra de progresso
-    total_validadas = len(df[df['Valida'].isin(['SIM', 'NÃO'])])
-    progresso = total_validadas / total if total > 0 else 0
+    # ===== BARRA SUPERIOR COM NAVEGAÇÃO RÁPIDA =====
+    col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
     
-    col_prog1, col_prog2 = st.columns([3, 1])
-    with col_prog1:
-        st.progress(progresso)
-    with col_prog2:
+    with col_nav1:
+        total_validadas = len(df[df['Valida'].isin(['SIM', 'NÃO'])])
+        progresso = total_validadas / total if total > 0 else 0
         st.metric("Progresso", f"{total_validadas}/{total}")
+    
+    with col_nav2:
+        st.progress(progresso)
+    
+    with col_nav3:
+        # Saltador de linha
+        linha_saltar = st.number_input(
+            "Ir para linha:",
+            min_value=1,
+            max_value=total,
+            value=idx + 1,
+            key="nav_input"
+        )
+        if linha_saltar != idx + 1:
+            st.session_state.indice = linha_saltar - 1
+            st.rerun()
+
+    st.divider()
 
     # ===== DOWNLOADS (sempre visível) =====
-    st.divider()
     st.markdown("### 📥 Opções de Download")
     col_down1, col_down2 = st.columns(2)
     
@@ -115,24 +130,48 @@ if st.session_state.df is not None:
                 col_cnpj = colunas_normalizadas[candidate]
                 break
 
-        # Verifica se tem imagem
+        # Verifica se tem imagem com debugging
         tem_imagem = False
         url_imagem = ""
+        erro_imagem = ""
         
         if col_url and pd.notna(linha[col_url]):
             url_imagem = str(linha[col_url]).strip()
-            if url_imagem and url_imagem.lower() != "nan":
+            
+            # Debug: mostra o que está tentando carregar
+            st.write(f"**DEBUG - URL detectada:** `{url_imagem}`")
+            
+            if url_imagem and url_imagem.lower() != "nan" and url_imagem != "":
                 try:
-                    if url_imagem.startswith("http"):
-                        resp = requests.get(url_imagem, timeout=10)
-                        resp.raise_for_status()
-                        img = Image.open(BytesIO(resp.content))
+                    if url_imagem.startswith("http://") or url_imagem.startswith("https://"):
+                        # Carrega de URL
+                        response = requests.get(url_imagem, timeout=15, allow_redirects=True)
+                        response.raise_for_status()
+                        
+                        # Verifica se o conteúdo é uma imagem
+                        content_type = response.headers.get('content-type', '')
+                        if 'image' not in content_type:
+                            st.write(f"**DEBUG - Content-Type:** {content_type}")
+                        
+                        img = Image.open(BytesIO(response.content))
                         tem_imagem = True
                     else:
-                        img = Image.open(url_imagem)
-                        tem_imagem = True
+                        # Carrega arquivo local
+                        try:
+                            img = Image.open(url_imagem)
+                            tem_imagem = True
+                        except FileNotFoundError:
+                            erro_imagem = f"Arquivo não encontrado: {url_imagem}"
+                except requests.exceptions.MissingSchema:
+                    erro_imagem = f"URL inválida (falta http/https): {url_imagem}"
+                except requests.exceptions.ConnectionError:
+                    erro_imagem = f"Erro de conexão ao acessar: {url_imagem}"
+                except requests.exceptions.Timeout:
+                    erro_imagem = f"Timeout ao carregar imagem (URL muito lenta)"
+                except requests.exceptions.HTTPError as e:
+                    erro_imagem = f"Erro HTTP {response.status_code}: {url_imagem}"
                 except Exception as e:
-                    tem_imagem = False
+                    erro_imagem = f"Erro: {type(e).__name__}: {str(e)}"
 
         # Layout
         col1, col2 = st.columns([2, 1])
@@ -142,18 +181,15 @@ if st.session_state.df is not None:
             
             if tem_imagem:
                 try:
-                    if url_imagem.startswith("http"):
-                        resp = requests.get(url_imagem, timeout=10)
-                        img = Image.open(BytesIO(resp.content))
-                    else:
-                        img = Image.open(url_imagem)
-                    
+                    # Resize para 9:16 (vertical)
                     largura = 360
                     altura = int(largura * 16 / 9)
                     img = img.resize((largura, altura))
                     st.image(img, use_column_width=True)
                 except Exception as e:
-                    st.error(f"❌ Erro: {str(e)[:100]}")
+                    st.error(f"❌ Erro ao redimensionar: {str(e)}")
+            elif erro_imagem:
+                st.error(f"❌ {erro_imagem}")
             else:
                 st.warning("⚠️ Sem imagem nesta linha")
         
