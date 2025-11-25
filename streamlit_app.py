@@ -340,21 +340,18 @@ if st.session_state.df is not None:
         else:
             # Radio buttons - armazenar seleção no session_state para evitar rerun
             radio_key = f"radio_{idx}"
-            if radio_key not in st.session_state:
-                # Verificar se já foi validada antes para pré-selecionar
-                if linha_ja_validada:
-                    valida_anterior = df.iloc[idx]['Valida']
-                    st.session_state[radio_key] = 'Válida ✔' if valida_anterior == 'SIM' else 'Inválida ✗'
-                else:
-                    st.session_state[radio_key] = 'Válida ✔'
+            
+            # Verificar se já foi validada antes para pré-selecionar
+            if linha_ja_validada:
+                valida_anterior = df.iloc[idx]['Valida']
+                default_valido = 'Válida ✔' if valida_anterior == 'SIM' else 'Inválida ✗'
+            else:
+                default_valido = 'Válida ✔'
             
             valido = st.radio('Como deseja classificar esta imagem?', 
                             ['Válida ✔', 'Inválida ✗'], 
                             key=radio_key,
-                            index=0 if st.session_state[radio_key] == 'Válida ✔' else 1)
-            
-            # Atualizar session_state com a seleção atual
-            st.session_state[radio_key] = valido
+                            index=0 if default_valido == 'Válida ✔' else 1)
             
             motivo_selecionado = ""
             motivo_key = f"mot_{idx}"
@@ -364,11 +361,11 @@ if st.session_state.df is not None:
                 motivos_opcoes = ['FRAUDE', 'NÃO É PÉ', 'OUTRA CATEGORIA', 'OUTRO PRODUTO']
                 
                 # Pré-selecionar motivo anterior se existir
-                if linha_ja_validada and df.iloc[idx]['Motivos']:
-                    motivo_anterior = df.iloc[idx]['Motivos']
-                    index_anterior = motivos_opcoes.index(motivo_anterior) if motivo_anterior in motivos_opcoes else 0
-                else:
-                    index_anterior = 0
+                index_anterior = 0
+                if linha_ja_validada:
+                    motivo_anterior = str(df.iloc[idx]['Motivos'])
+                    if motivo_anterior in motivos_opcoes:
+                        index_anterior = motivos_opcoes.index(motivo_anterior)
                 
                 motivo_selecionado = st.radio(
                     'Motivo:',
@@ -412,11 +409,14 @@ if st.session_state.df is not None:
                                     st.session_state.df.loc[i, 'Data_Validacao'] = data_validacao + " (replicado)"
                                     linhas_replicadas += 1
                     
-                    # Limpar session_state dos radio buttons
-                    if f"radio_{idx}" in st.session_state:
-                        del st.session_state[f"radio_{idx}"]
-                    if f"mot_{idx}" in st.session_state:
-                        del st.session_state[f"mot_{idx}"]
+                    # Limpar session_state dos radio buttons (se existirem)
+                    radio_key_atual = f"radio_{idx}"
+                    motivo_key_atual = f"mot_{idx}"
+                    
+                    if radio_key_atual in st.session_state:
+                        del st.session_state[radio_key_atual]
+                    if motivo_key_atual in st.session_state:
+                        del st.session_state[motivo_key_atual]
                     
                     # Avançar
                     st.session_state.indice = idx + 1
