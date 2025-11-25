@@ -49,8 +49,12 @@ if st.session_state.df is not None:
     total = len(df)
     idx = st.session_state.indice
 
-    while idx < total and str(df.iloc[idx].get("Valida", "")).upper() in ["SIM", "NÃO"]:
+    # Atualizar índice para próxima imagem não validada
+    while idx < total and str(df.iloc[idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
         idx += 1
+    
+    # Sincronizar session_state com índice atual
+    st.session_state.indice = idx
 
     # Barra de navegação
     col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
@@ -239,21 +243,33 @@ if st.session_state.df is not None:
             st.markdown(f"**Motivo:** {motivo_selecionado}")
             col_btn1, col_btn2, col_btn3 = st.columns(3)
             with col_btn1:
-                if st.button('✔ Salvar', use_container_width=True, key=f"btn_s_{idx}"):
+                if st.button('✔ Salvar', use_container_width=True, key=f"btn_s_{idx}", type="primary"):
                     df.at[idx, 'Valida'] = 'NÃO'
                     df.at[idx, 'Motivos'] = motivo_selecionado
                     df.at[idx, 'Data_Validacao'] = str(datetime.now())
-                    st.session_state.indice = idx + 1
                     st.session_state.df = df
+                    # Avançar para próxima não validada
+                    next_idx = idx + 1
+                    while next_idx < total and str(df.iloc[next_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
+                        next_idx += 1
+                    st.session_state.indice = next_idx
                     st.rerun()
             with col_btn2:
                 if st.button('← Voltar', use_container_width=True, key=f"btn_v_{idx}"):
                     if idx > 0:
-                        st.session_state.indice = idx - 1
+                        # Voltar para anterior não validada
+                        prev_idx = idx - 1
+                        while prev_idx > 0 and str(df.iloc[prev_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
+                            prev_idx -= 1
+                        st.session_state.indice = prev_idx
                         st.rerun()
             with col_btn3:
                 if st.button('→ Próxima', use_container_width=True, key=f"btn_p_{idx}"):
-                    st.session_state.indice = idx + 1
+                    # Avançar sem salvar
+                    next_idx = idx + 1
+                    while next_idx < total and str(df.iloc[next_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
+                        next_idx += 1
+                    st.session_state.indice = next_idx
                     st.rerun()
         else:
             valido = st.radio('Validação:', ['Válida ✔', 'Inválida ✗'], key=f"radio_{idx}")
@@ -269,24 +285,36 @@ if st.session_state.df is not None:
                 )
             col_btn1, col_btn2, col_btn3 = st.columns(3)
             with col_btn1:
-                if st.button('✔ Salvar', use_container_width=True, key=f"btn_s_{idx}"):
+                if st.button('✔ Salvar', use_container_width=True, key=f"btn_s_{idx}", type="primary"):
                     if valido == 'Inválida ✗' and motivo_selecionado is None:
-                        st.error('Selecione um motivo!')
+                        st.error('⚠️ Selecione um motivo antes de salvar!')
                     else:
                         df.at[idx, 'Valida'] = 'SIM' if valido == 'Válida ✔' else 'NÃO'
                         df.at[idx, 'Motivos'] = motivo_selecionado if motivo_selecionado else ""
                         df.at[idx, 'Data_Validacao'] = str(datetime.now())
-                        st.session_state.indice = idx + 1
                         st.session_state.df = df
+                        # Avançar para próxima não validada
+                        next_idx = idx + 1
+                        while next_idx < total and str(df.iloc[next_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
+                            next_idx += 1
+                        st.session_state.indice = next_idx
                         st.rerun()
             with col_btn2:
                 if st.button('← Voltar', use_container_width=True, key=f"btn_v_{idx}"):
                     if idx > 0:
-                        st.session_state.indice = idx - 1
+                        # Voltar para anterior não validada
+                        prev_idx = idx - 1
+                        while prev_idx > 0 and str(df.iloc[prev_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
+                            prev_idx -= 1
+                        st.session_state.indice = prev_idx
                         st.rerun()
             with col_btn3:
                 if st.button('→ Próxima', use_container_width=True, key=f"btn_p_{idx}"):
-                    st.session_state.indice = idx + 1
+                    # Avançar sem salvar
+                    next_idx = idx + 1
+                    while next_idx < total and str(df.iloc[next_idx].get("Valida", "")).strip().upper() in ["SIM", "NÃO", "NAO"]:
+                        next_idx += 1
+                    st.session_state.indice = next_idx
                     st.rerun()
 
     else:
