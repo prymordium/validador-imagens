@@ -237,6 +237,28 @@ if st.session_state.df is not None:
             if col_cnpj:
                 cnpj = str(linha[col_cnpj]) if pd.notna(linha[col_cnpj]) else "N/A"
                 st.text_input("**CNPJ:**", cnpj, disabled=True, key=f"cnpj_{idx}")
+            
+            # Mostrar quantas duplicatas existem
+            if col_url and col_categoria and pd.notna(linha[col_url]) and pd.notna(linha[col_categoria]):
+                url_atual = str(linha[col_url]).strip()
+                cat_atual = str(linha[col_categoria]).strip()
+                
+                # Contar duplicatas (mesma URL + Categoria)
+                duplicatas_totais = 0
+                duplicatas_pendentes = 0
+                for i in range(len(df)):
+                    row = df.iloc[i]
+                    url_row = str(row[col_url]).strip() if pd.notna(row[col_url]) else None
+                    cat_row = str(row[col_categoria]).strip() if pd.notna(row[col_categoria]) else None
+                    
+                    if url_row == url_atual and cat_row == cat_atual:
+                        duplicatas_totais += 1
+                        if str(row['Valida']).strip() == "":
+                            duplicatas_pendentes += 1
+                
+                if duplicatas_totais > 1:
+                    st.info(f"🔄 **{duplicatas_totais} linha(s) com mesma URL + Categoria**\n\n{duplicatas_pendentes} ainda não validadas")
+
 
         st.divider()
         st.markdown("### Validação")
@@ -253,11 +275,39 @@ if st.session_state.df is not None:
             col_btn1, col_btn2, col_btn3 = st.columns(3)
             with col_btn1:
                 if st.button('✔ Salvar SEM IMAGEM', use_container_width=True, key=f"btn_sem_{idx}", type="primary"):
+                    data_validacao = str(datetime.now())
+                    
+                    # Salvar linha atual
                     st.session_state.df.loc[idx, 'Valida'] = 'NÃO'
                     st.session_state.df.loc[idx, 'Motivos'] = 'SEM IMAGEM'
-                    st.session_state.df.loc[idx, 'Data_Validacao'] = str(datetime.now())
+                    st.session_state.df.loc[idx, 'Data_Validacao'] = data_validacao
+                    
+                    # REPLICAÇÃO AUTOMÁTICA para SEM IMAGEM
+                    url_atual = str(linha[col_url]).strip() if col_url and pd.notna(linha[col_url]) else None
+                    categoria_atual = str(linha[col_categoria]).strip() if col_categoria and pd.notna(linha[col_categoria]) else None
+                    
+                    linhas_replicadas = 0
+                    if url_atual and categoria_atual:
+                        for i in range(len(st.session_state.df)):
+                            if i != idx:
+                                row = st.session_state.df.iloc[i]
+                                url_row = str(row[col_url]).strip() if col_url and pd.notna(row[col_url]) else None
+                                cat_row = str(row[col_categoria]).strip() if col_categoria and pd.notna(row[col_categoria]) else None
+                                valida_row = str(row['Valida']).strip()
+                                
+                                if url_row == url_atual and cat_row == categoria_atual and valida_row == "":
+                                    st.session_state.df.loc[i, 'Valida'] = 'NÃO'
+                                    st.session_state.df.loc[i, 'Motivos'] = 'SEM IMAGEM'
+                                    st.session_state.df.loc[i, 'Data_Validacao'] = data_validacao + " (replicado)"
+                                    linhas_replicadas += 1
+                    
                     st.session_state.indice = idx + 1
-                    st.success("✅ Salvo como SEM IMAGEM!")
+                    
+                    if linhas_replicadas > 0:
+                        st.success(f"✅ Salvo como SEM IMAGEM!\n\n🔄 **{linhas_replicadas} linha(s) duplicada(s) replicada(s) automaticamente!**")
+                    else:
+                        st.success("✅ Salvo como SEM IMAGEM!")
+                    
                     st.rerun()
             with col_btn2:
                 if st.button('← Voltar', use_container_width=True, key=f"btn_v_sem_{idx}"):
@@ -290,15 +340,44 @@ if st.session_state.df is not None:
                 if st.button('✔ Salvar e Avançar', use_container_width=True, key=f"btn_s_{idx}", type="primary"):
                     # Salvar no DataFrame
                     resultado = 'SIM' if valido == 'Válida ✔' else 'NÃO'
+                    data_validacao = str(datetime.now())
+                    
+                    # Salvar linha atual
                     st.session_state.df.loc[idx, 'Valida'] = resultado
                     st.session_state.df.loc[idx, 'Motivos'] = motivo_selecionado
-                    st.session_state.df.loc[idx, 'Data_Validacao'] = str(datetime.now())
+                    st.session_state.df.loc[idx, 'Data_Validacao'] = data_validacao
+                    
+                    # REPLICAÇÃO AUTOMÁTICA: Buscar linhas duplicadas (mesma URL + Categoria)
+                    url_atual = str(linha[col_url]).strip() if col_url and pd.notna(linha[col_url]) else None
+                    categoria_atual = str(linha[col_categoria]).strip() if col_categoria and pd.notna(linha[col_categoria]) else None
+                    
+                    linhas_replicadas = 0
+                    if url_atual and categoria_atual:
+                        # Encontrar todas as linhas com mesma URL e Categoria que ainda não foram validadas
+                        for i in range(len(st.session_state.df)):
+                            if i != idx:  # Não replicar na própria linha
+                                row = st.session_state.df.iloc[i]
+                                url_row = str(row[col_url]).strip() if col_url and pd.notna(row[col_url]) else None
+                                cat_row = str(row[col_categoria]).strip() if col_categoria and pd.notna(row[col_categoria]) else None
+                                valida_row = str(row['Valida']).strip()
+                                
+                                # Se URL e Categoria são iguais e ainda não foi validada
+                                if url_row == url_atual and cat_row == categoria_atual and valida_row == "":
+                                    st.session_state.df.loc[i, 'Valida'] = resultado
+                                    st.session_state.df.loc[i, 'Motivos'] = motivo_selecionado
+                                    st.session_state.df.loc[i, 'Data_Validacao'] = data_validacao + " (replicado)"
+                                    linhas_replicadas += 1
                     
                     # Avançar
                     st.session_state.indice = idx + 1
                     
-                    # Feedback
-                    st.success(f"✅ Salvo como: {resultado} {f'- {motivo_selecionado}' if motivo_selecionado else ''}")
+                    # Feedback com informação de replicação
+                    mensagem_base = f"✅ Salvo como: {resultado} {f'- {motivo_selecionado}' if motivo_selecionado else ''}"
+                    if linhas_replicadas > 0:
+                        st.success(f"{mensagem_base}\n\n🔄 **{linhas_replicadas} linha(s) duplicada(s) replicada(s) automaticamente!**")
+                    else:
+                        st.success(mensagem_base)
+                    
                     st.rerun()
             
             with col_btn2:
