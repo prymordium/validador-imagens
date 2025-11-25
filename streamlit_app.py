@@ -32,6 +32,10 @@ if uploaded_file:
     st.write("**Colunas detectadas:**", df.columns.tolist())
     st.write(f"**Total de linhas:** {len(df)}")
     
+    # Mostrar amostra das primeiras linhas para debug
+    with st.expander("🔍 Ver amostra dos dados"):
+        st.dataframe(df.head(3))
+    
     for col in ["Valida", "Motivos", "Data_Validacao"]:
         if col not in df.columns:
             df[col] = ""
@@ -94,7 +98,30 @@ if st.session_state.df is not None:
 
     if idx < total:
         linha = df.iloc[idx]
-        col_url = "URL_Imagem" if "URL_Imagem" in df.columns else None
+        
+        # Detectar coluna de URL (várias variações possíveis)
+        col_url = None
+        possiveis_urls = ['URL_Imagem', 'url_imagem', 'URL', 'url', 'link', 'Link', 'image_url', 'imagem']
+        for col in possiveis_urls:
+            if col in df.columns:
+                col_url = col
+                break
+        
+        # Se não encontrou, pega a primeira coluna que contém 'url' ou 'http'
+        if not col_url:
+            for col in df.columns:
+                if 'url' in col.lower() or 'link' in col.lower():
+                    col_url = col
+                    break
+        
+        # Se ainda não encontrou, verifica se alguma coluna tem URLs nas primeiras linhas
+        if not col_url:
+            for col in df.columns:
+                amostra = str(df[col].iloc[0]) if len(df) > 0 else ""
+                if amostra.startswith('http://') or amostra.startswith('https://'):
+                    col_url = col
+                    break
+        
         col_categoria = "Categoria" if "Categoria" in df.columns else None
         col_data = "Data" if "Data" in df.columns else None
         col_cnpj = "CNPJ" if "CNPJ" in df.columns else None
@@ -104,6 +131,12 @@ if st.session_state.df is not None:
         url_imagem = ""
         erro_imagem = ""
         img = None
+        
+        # Debug: mostrar qual coluna foi detectada
+        if col_url:
+            st.info(f"📍 Coluna de URL detectada: **{col_url}**")
+        else:
+            st.error(f"❌ Nenhuma coluna de URL encontrada. Colunas disponíveis: {df.columns.tolist()}")
         
         if col_url and pd.notna(linha[col_url]):
             url_imagem = str(linha[col_url]).strip()
