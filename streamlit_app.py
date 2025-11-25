@@ -97,11 +97,28 @@ if st.session_state.df is not None:
     if idx < total:
         linha = df.iloc[idx]
         
-        # DETECÇÃO CORRIGIDA DE COLUNAS
-        col_url = "URL_Imagem" if "URL_Imagem" in df.columns else None
-        col_categoria = "Categoria" if "Categoria" in df.columns else None
-        col_data = "Data" if "Data" in df.columns else None
-        col_cnpj = "CNPJ" if "CNPJ" in df.columns else None
+        # DETECÇÃO CORRIGIDA - procura pelas colunas exatas do arquivo
+        col_url = None
+        col_categoria = None
+        col_data = None
+        col_cnpj = None
+
+        # Verifica as colunas exatas conforme o arquivo
+        if "URLImagem" in df.columns:
+            col_url = "URLImagem"
+        elif "URL_Imagem" in df.columns:
+            col_url = "URL_Imagem"
+        elif "url_imagem" in df.columns:
+            col_url = "url_imagem"
+        
+        if "Categoria" in df.columns:
+            col_categoria = "Categoria"
+        
+        if "Data" in df.columns:
+            col_data = "Data"
+        
+        if "CNPJ" in df.columns:
+            col_cnpj = "CNPJ"
 
         # Carrega imagem
         tem_imagem = False
@@ -257,4 +274,4 @@ if st.session_state.df is not None:
         if st.button("🔄 Reiniciar"):
             st.session_state.indice = 0
 else:
-    st.info('📤 Carregue um CSV ou XLSX com: URL_Imagem, Categoria, Data, CNPJ')
+    st.info('📤 Carregue um CSV ou XLSX com: URLImagem, Categoria, Data, CNPJ')
