@@ -347,15 +347,11 @@ if st.session_state.df is not None:
                     # Voltar para a linha anterior
                     if idx > 0:
                         st.session_state.indice = idx - 1
-                        st.session_state.indice_protegido = idx - 1
                         st.session_state.voltando = True
-                        st.session_state.ultima_acao = True
                         st.rerun()
             with col_btn3:
                 if st.button('→ Pular', use_container_width=True, key=f"btn_p_sem_{idx}"):
                     st.session_state.indice = idx + 1
-                    st.session_state.indice_protegido = idx + 1
-                    st.session_state.ultima_acao = True
                     st.rerun()
         else:
             # Radio buttons - armazenar seleção no session_state para evitar rerun
