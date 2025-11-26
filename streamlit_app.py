@@ -232,6 +232,30 @@ if st.session_state.df is not None:
                 st.warning("⚠️ Sem imagem disponível")
         
         with col2:
+            st.markdown("### Item Anterior")
+            if idx > 0:
+                linha_ant = df.iloc[idx - 1]
+                
+                if col_url:
+                    url_val_ant = str(linha_ant[col_url]) if pd.notna(linha_ant[col_url]) else "N/A"
+                    st.text_area("**URL (Ant):**", url_val_ant, height=80, disabled=True, key=f"url_ant_{idx}")
+                if col_categoria:
+                    cat_ant = str(linha_ant[col_categoria]) if pd.notna(linha_ant[col_categoria]) else "N/A"
+                    st.text_input("**Categoria (Ant):**", cat_ant, disabled=True, key=f"cat_ant_{idx}")
+                if col_data:
+                    data_ant = str(linha_ant[col_data]) if pd.notna(linha_ant[col_data]) else "N/A"
+                    st.text_input("**Data (Ant):**", data_ant, disabled=True, key=f"data_ant_{idx}")
+                if col_cnpj:
+                    cnpj_ant = str(linha_ant[col_cnpj]) if pd.notna(linha_ant[col_cnpj]) else "N/A"
+                    st.text_input("**CNPJ (Ant):**", cnpj_ant, disabled=True, key=f"cnpj_ant_{idx}")
+                
+                valida_ant = str(linha_ant['Valida'])
+                motivo_ant = str(linha_ant['Motivos'])
+                st.info(f"**Status:** {valida_ant}\n\n{motivo_ant}")
+            else:
+                st.info("Este é o primeiro item.")
+
+        with col3:
             st.markdown("### Informações do Item")
             if col_url:
                 url_val = str(linha[col_url]) if pd.notna(linha[col_url]) else "N/A"
@@ -266,30 +290,6 @@ if st.session_state.df is not None:
                 
                 if duplicatas_totais > 1:
                     st.info(f"🔄 **{duplicatas_totais} linha(s) com mesma URL + Categoria**\n\n{duplicatas_pendentes} ainda não validadas")
-
-        with col3:
-            st.markdown("### Item Anterior")
-            if idx > 0:
-                linha_ant = df.iloc[idx - 1]
-                
-                if col_url:
-                    url_val_ant = str(linha_ant[col_url]) if pd.notna(linha_ant[col_url]) else "N/A"
-                    st.text_area("**URL (Ant):**", url_val_ant, height=80, disabled=True, key=f"url_ant_{idx}")
-                if col_categoria:
-                    cat_ant = str(linha_ant[col_categoria]) if pd.notna(linha_ant[col_categoria]) else "N/A"
-                    st.text_input("**Categoria (Ant):**", cat_ant, disabled=True, key=f"cat_ant_{idx}")
-                if col_data:
-                    data_ant = str(linha_ant[col_data]) if pd.notna(linha_ant[col_data]) else "N/A"
-                    st.text_input("**Data (Ant):**", data_ant, disabled=True, key=f"data_ant_{idx}")
-                if col_cnpj:
-                    cnpj_ant = str(linha_ant[col_cnpj]) if pd.notna(linha_ant[col_cnpj]) else "N/A"
-                    st.text_input("**CNPJ (Ant):**", cnpj_ant, disabled=True, key=f"cnpj_ant_{idx}")
-                
-                valida_ant = str(linha_ant['Valida'])
-                motivo_ant = str(linha_ant['Motivos'])
-                st.info(f"**Status:** {valida_ant}\n\n{motivo_ant}")
-            else:
-                st.info("Este é o primeiro item.")
 
         st.divider()
         st.markdown("### Validação")
