@@ -232,7 +232,7 @@ if st.session_state.df is not None:
                 st.warning("⚠️ Sem imagem disponível")
         
         with col2:
-            st.markdown("### Item Anterior")
+            st.markdown("### Info Item Anterior")
             if idx > 0:
                 linha_ant = df.iloc[idx - 1]
                 
