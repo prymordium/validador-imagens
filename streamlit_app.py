@@ -361,7 +361,7 @@ if st.session_state.df is not None:
             
             if valido == 'Inválida ✗':
                 st.markdown("**Selecione o motivo da invalidação:**")
-                motivos_opcoes = ['FRAUDE', 'NÃO É PÉ', 'OUTRA CATEGORIA', 'OUTRO PRODUTO']
+                motivos_opcoes = ['FRAUDE', 'NÃO É PONTO EXTRA', 'OUTRA CATEGORIA', 'OUTRO PRODUTO', 'MESMA FOTO']
                 
                 # Pré-selecionar motivo anterior se existir
                 index_anterior = 0
