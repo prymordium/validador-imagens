@@ -211,7 +211,7 @@ if st.session_state.df is not None:
             erro_imagem = "Sem URL"
 
         # Layout
-        col1, col2 = st.columns([2, 1])
+        col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
             st.markdown(f"## Imagem {idx+1} de {total}")
             if tem_imagem and img:
@@ -267,6 +267,29 @@ if st.session_state.df is not None:
                 if duplicatas_totais > 1:
                     st.info(f"🔄 **{duplicatas_totais} linha(s) com mesma URL + Categoria**\n\n{duplicatas_pendentes} ainda não validadas")
 
+        with col3:
+            st.markdown("### Item Anterior")
+            if idx > 0:
+                linha_ant = df.iloc[idx - 1]
+                
+                if col_url:
+                    url_val_ant = str(linha_ant[col_url]) if pd.notna(linha_ant[col_url]) else "N/A"
+                    st.text_area("**URL (Ant):**", url_val_ant, height=80, disabled=True, key=f"url_ant_{idx}")
+                if col_categoria:
+                    cat_ant = str(linha_ant[col_categoria]) if pd.notna(linha_ant[col_categoria]) else "N/A"
+                    st.text_input("**Categoria (Ant):**", cat_ant, disabled=True, key=f"cat_ant_{idx}")
+                if col_data:
+                    data_ant = str(linha_ant[col_data]) if pd.notna(linha_ant[col_data]) else "N/A"
+                    st.text_input("**Data (Ant):**", data_ant, disabled=True, key=f"data_ant_{idx}")
+                if col_cnpj:
+                    cnpj_ant = str(linha_ant[col_cnpj]) if pd.notna(linha_ant[col_cnpj]) else "N/A"
+                    st.text_input("**CNPJ (Ant):**", cnpj_ant, disabled=True, key=f"cnpj_ant_{idx}")
+                
+                valida_ant = str(linha_ant['Valida'])
+                motivo_ant = str(linha_ant['Motivos'])
+                st.info(f"**Status:** {valida_ant}\n\n{motivo_ant}")
+            else:
+                st.info("Este é o primeiro item.")
 
         st.divider()
         st.markdown("### Validação")
@@ -361,7 +384,7 @@ if st.session_state.df is not None:
             
             if valido == 'Inválida ✗':
                 st.markdown("**Selecione o motivo da invalidação:**")
-                motivos_opcoes = ['FRAUDE', 'NÃO É PONTO EXTRA', 'OUTRA CATEGORIA', 'OUTRO PRODUTO', 'MESMA FOTO']
+                motivos_opcoes = ['FRAUDE', 'NÃO É PÉ', 'OUTRA CATEGORIA', 'OUTRO PRODUTO']
                 
                 # Pré-selecionar motivo anterior se existir
                 index_anterior = 0
