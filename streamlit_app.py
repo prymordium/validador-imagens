@@ -313,7 +313,7 @@ if st.session_state.df is not None:
                                 cat_row = str(row[col_categoria]).strip() if col_categoria and pd.notna(row[col_categoria]) else None
                                 valida_row = str(row['Valida']).strip()
                                 
-                                if url_row == url_atual and cat_row == categoria_atual and valida_row == "":
+                                if url_row == url_atual and cat_row == categoria_atual and valida_row in ["", "nan"]:
                                     st.session_state.df.loc[i, 'Valida'] = 'NÃO'
                                     st.session_state.df.loc[i, 'Motivos'] = 'SEM IMAGEM'
                                     st.session_state.df.loc[i, 'Data_Validacao'] = data_validacao + " (replicado)"
@@ -406,7 +406,7 @@ if st.session_state.df is not None:
                                 valida_row = str(row['Valida']).strip()
                                 
                                 # Se URL e Categoria são iguais e ainda não foi validada
-                                if url_row == url_atual and cat_row == categoria_atual and valida_row == "":
+                                if url_row == url_atual and cat_row == categoria_atual and valida_row in ["", "nan"]:
                                     st.session_state.df.loc[i, 'Valida'] = resultado
                                     st.session_state.df.loc[i, 'Motivos'] = motivo_selecionado
                                     st.session_state.df.loc[i, 'Data_Validacao'] = data_validacao + " (replicado)"
